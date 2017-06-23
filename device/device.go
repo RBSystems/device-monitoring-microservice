@@ -73,6 +73,7 @@ func Ping(building, room, device, address string) {
 
 	log.Printf("Running command...")
 	timestamp := string(time.Now().Format(time.RFC3339))
+	deviceTag := building + "-" + room + device
 	err := cmd.Run()
 	if err != nil {
 		log.Printf("Error running command: %s", err.Error())
@@ -83,13 +84,13 @@ func Ping(building, room, device, address string) {
 
 	if strings.Contains(out.String(), "Request timeout") {
 
-		log.Printf("Alert! No response from device %s at address %s", device, address)
-		err = logstash.SendEvent(building, room, timestamp, device, "Not responding")
+		log.Printf("Alert! No response from device %s at address %s", deviceTag, address)
+		err = logstash.SendEvent(building, room, timestamp, deviceTag, "not responding", "av device")
 
 	} else {
 
-		log.Printf("Device %s at address %s responding normally", device, address)
-		err = logstash.SendEvent(building, room, timestamp, device, "Responding")
+		log.Printf("Device %s at address %s responding normally", deviceTag, address)
+		err = logstash.SendEvent(building, room, timestamp, deviceTag, "responding", "av device")
 
 	}
 

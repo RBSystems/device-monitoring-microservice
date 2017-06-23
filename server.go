@@ -10,6 +10,7 @@ import (
 
 	"github.com/byuoitav/authmiddleware"
 	"github.com/byuoitav/device-monitoring-microservice/device"
+	"github.com/byuoitav/device-monitoring-microservice/microservice"
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 )
@@ -48,6 +49,12 @@ func main() {
 
 		}()
 	}
+
+	go func() {
+
+		microservice.CheckMicroservices()
+
+	}()
 
 	port := ":10000"
 	router := echo.New()

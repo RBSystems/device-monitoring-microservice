@@ -11,6 +11,7 @@ import (
 
 	"github.com/byuoitav/authmiddleware"
 	"github.com/byuoitav/device-monitoring-microservice/device"
+	"github.com/byuoitav/device-monitoring-microservice/mics"
 	"github.com/byuoitav/device-monitoring-microservice/statemonitoring"
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
@@ -29,6 +30,8 @@ func main() {
 
 	statemonitoring.StartMonitoring(time.Second*300, "localhost:8000", building, room)
 	addr = fmt.Sprintf("http://%s/buildings/%s/rooms/%s", "localhost:8000", building, room)
+
+	mics.GetMicBatteries(time.Second*300, "localhost:8013", "time", building, room)
 
 	//get addresses from database
 	devices, err := device.GetAddresses(building, room)

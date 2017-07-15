@@ -75,6 +75,28 @@ func GetMicBatteries(interval time.Duration, shureAddr, format, building, room s
 
 func QueryMicPower(address, channel string) (status.PowerStatus, error) {
 	return status.PowerStatus{}, nil
+
+	address = fmt.Sprintf("http://%s/%s/power/status", address, channel)
+
+	response, err := http.Get(address)
+	if err != nil {
+		return status.PowerStatus{}, err
+	} else if response.StatusCode != STATUS_OK {
+		return status.PowerStatus{}, errors.New("Non-200 response from shure audio microservice")
+	}
+
+	body, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		return status.PowerStatus{}, err
+	}
+
+	var power status.PowerStatus
+	err = json.Unmarshal(body, &power)
+	if err != nil {
+		return status.PowerStatus{}, err
+	}
+
+	return power, nil
 }
 
 func QueryMicBattery(address, channel, format string) (status.Battery, error) {

@@ -31,7 +31,7 @@ func main() {
 	statemonitoring.StartMonitoring(time.Second*300, "localhost:8000", building, room)
 	addr = fmt.Sprintf("http://%s/buildings/%s/rooms/%s", "localhost:8000", building, room)
 
-	mics.GetMicBatteries(time.Second*300, "localhost:8013", "time", building, room)
+	mics.GetMicBatteries(time.Second, "localhost:8013", "time", building, room)
 
 	//get addresses from database
 	devices, err := device.GetAddresses(building, room)

@@ -19,7 +19,7 @@ import (
 var Publisher publisher.Publisher
 
 func StartPublisher() {
-	//Start our publisher for publishing satate events
+	//Start our publisher for publishing state events
 	var err error
 	Publisher, err = publisher.NewPublisher("7004", 1000, 10)
 	if err != nil {
@@ -28,7 +28,7 @@ func StartPublisher() {
 	}
 
 	go func() {
-		Publisher.Listen()
+		err = Publisher.Listen()
 		if err != nil {
 			errstr := fmt.Sprintf("[publisher] Could not start publisher listening. Error: %v\n", err.Error())
 			log.Fatalf(errstr)

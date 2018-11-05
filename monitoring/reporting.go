@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/byuoitav/common/events"
+	"github.com/byuoitav/common/v2/events"
 )
 
 func SendEvent(Type events.EventType,
@@ -37,46 +37,42 @@ func SendEvent(Type events.EventType,
 }
 
 func PublishError(errorStr string, cause events.EventCause) {
-	e := events.EventInfo{
-		Type:           events.ERROR,
-		EventCause:     cause,
-		EventInfoKey:   "Error String",
-		EventInfoValue: errorStr,
+	e := events.Event{
+		Key:   "Error String",
+		Value: errorStr,
 	}
+	e.AddToTags(cause)
+	e.AddToTags(events.Error)
 
 	building := ""
 	room := ""
 
-	if len(os.Getenv("LOCAL_ENVIRONMENT")) > 0 {
-		if len(os.Getenv("PI_HOSTNAME")) > 0 {
-			name := os.Getenv("PI_HOSTNAME")
+	if len(os.Getenv("ROOM_SYSTEM")) > 0 {
+		if len(os.Getenv("SYSTEM_ID")) > 0 {
+			name := os.Getenv("SYSTEM_ID")
 			roomInfo := strings.Split(name, "-")
 			building = roomInfo[0]
 			room = roomInfo[1]
-			e.Device = roomInfo[2]
-			e.DeviceID = name
+			e.TargetDevice = events.GenerateBasicDeviceInfo(name)
+			e.GeneratingSystem = name
+			e.AffectedRoom = events.GenerateBasicRoomInfo(building + "-" + room)
 		}
 	}
-
-	Publish(events.Event{
-		Event:    e,
-		Building: building,
-		Room:     room,
-	}, true)
+	Publish(e)
 }
 
-func Publish(e events.Event, Error bool) error {
+func Publish(e events.Event) error {
 	var err error
 
 	// create the event
-	e.Timestamp = time.Now().Format(time.RFC3339)
-	if len(os.Getenv("LOCAL_ENVIRONMENT")) > 0 {
-		e.Hostname = os.Getenv("PI_HOSTNAME")
+	e.Timestamp = time.Now()
+	if len(os.Getenv("ROOM_SYSTEM")) > 0 {
+		e.GeneratingSystem = os.Getenv("SYSTEM_ID")
 		if len(os.Getenv("DEVELOPMENT_HOSTNAME")) > 0 {
-			e.Hostname = os.Getenv("DEVELOPMENT_HOSTNAME")
+			e.GeneratinSystem = os.Getenv("DEVELOPMENT_HOSTNAME")
 		}
 	} else {
-		e.Hostname, err = os.Hostname()
+		e.GeneratingSystem, err = os.Hostname()
 		if err != nil {
 			return err
 		}
@@ -85,13 +81,10 @@ func Publish(e events.Event, Error bool) error {
 		return err
 	}
 
-	e.LocalEnvironment = len(os.Getenv("LOCAL_ENVIRONMENT")) > 0
-
-	if !Error {
-		eventnode.PublishEvent(events.APISuccess, e)
-	} else {
-		eventnode.PublishEvent(events.APIError, e)
+	if len(os.Getenv("ROOM_SYSTEM")) > 0 {
+		e.AddToTags(events.RoomSystem)
 	}
 
+	m.SendEvent(e)
 	return err
 }

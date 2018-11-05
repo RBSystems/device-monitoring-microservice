@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"github.com/byuoitav/authmiddleware"
-	"github.com/byuoitav/common/events"
+	"github.com/byuoitav/central-event-system/messenger"
+	"github.com/byuoitav/common/v2/events"
 	"github.com/byuoitav/device-monitoring-microservice/handlers"
 	"github.com/byuoitav/device-monitoring-microservice/monitoring"
 	"github.com/byuoitav/device-monitoring-microservice/statusinfrastructure"
-	"github.com/byuoitav/messenger"
 	"github.com/byuoitav/touchpanel-ui-microservice/socket"
 	"github.com/fatih/color"
 	"github.com/labstack/echo"
@@ -25,35 +25,23 @@ var building string
 var room string
 
 func main() {
-	// start event node
-	//filters := []string{events.TestEnd, events.TestExternal}
-
+	//Our handy-dandy messenger to take our events to the hub
 	m := messenger.BuildMessenger(os.Getenv("EVENT_ROUTER_ADDRESS"), Messenger, 1000)
 	if _, exists := os.LookupEnv("SYSTEM_ROOM"); exists {
+		//If the the we are working in a room, subscribe to that room and monitor it
 		hostname := os.Getenv("SYSTEM_ID")
 		building = strings.Split(hostname, "-")[0]
 		room = strings.Split(hostname, "-")[1]
 		r := make([]string)
 		r = append(r, (building + "-" + room))
-		en.SubscribeToRooms(r)
+		m.SubscribeToRooms(r)
 		go monitor(building, room, m)
 	}
-
-	//en := events.NewEventNode("Device Monitoring", os.Getenv("EVENT_ROUTER_ADDRESS"), filters)
 
 	// websocket
 	hub := socket.NewHub(m)
 	go WriteEventsToSocket(m, hub, statusinfrastructure.EventNodeStatus{})
 
-	/* Commented until we add SYSTEM_ID, then we will delete this
-	//get building and room info
-	hostname := os.Getenv("PI_HOSTNAME")
-	building = strings.Split(hostname, "-")[0]
-	room = strings.Split(hostname, "-")[1]
-
-
-	go monitor(building, room, en)
-	*/
 	port := ":10000"
 	router := echo.New()
 	router.Pre(middleware.RemoveTrailingSlash())
@@ -73,7 +61,11 @@ func main() {
 	secure.GET("/pulse", Pulse)
 	secure.GET("/eventstatus", handlers.EventStatus, BindEventNode(en))
 	secure.GET("/testevents", func(context echo.Context) error {
-		en.Node.Write(messenger.Message{Header: events.TestStart, Body: []byte("test event")})
+		//TODO - Confirm that this thing is a good translation
+		//		en.Node.Write(messenger.Message{Header: events.TestStart, Body: []byte("test event")})
+		e := events.Event{}
+		e.AddToTags(events.TestStart)
+		m.SendEvent(e)
 		return nil
 	})
 
@@ -141,31 +133,22 @@ func monitor(building, room string, m *messenger.Messenger) {
 func WriteEventsToSocket(m *messenger.Messenger, h *socket.Hub, t interface{}) {
 	for {
 		message := m.ReceiveEvent()
-		//message := en.Node.Read()
 
-		//TODO I have no idea how to check this...
-		//Maybe the header thing is a tag(??) and I can ask how to check that???
-		if strings.EqualFold(message.Header, events.TestExternal) {
+		if events.HasTag(message, TestExternal) {
 			log.Printf(color.BlueString("Responding to external test event"))
 
-			var s statusinfrastructure.EventNodeStatus
+			var s events.Event
 			if len(os.Getenv("DEVELOPMENT_HOSTNAME")) > 0 {
-				s.Name = os.Getenv("DEVELOPMENT_HOSTNAME")
-			} else if len(os.Getenv("PI_HOSTNAME")) > 0 {
-				s.Name = os.Getenv("PI_HOSTNAME")
+				s.GeneratingSystem = os.Getenv("DEVELOPMENT_HOSTNAME")
+			} else if len(os.Getenv("SYSTEM_ID")) > 0 {
+				s.GeneratingSystem = os.Getenv("SYSTEM_ID")
 			} else {
-				s.Name, _ = os.Hostname()
+				s.GeneratingSystem, _ = os.Hostname()
 			}
-
-			b, err := json.Marshal(s)
-			if err != nil {
-				log.Printf("error marshaling json: %v", err.Error())
-				continue
-			}
-
-			en.Node.Write(messenger.Message{Header: events.TestExternalReply, Body: b})
+			s.AddToTags(events.TestExternal)
+			m.SendEvent(s)
 		}
-
+		//I made it this far in this function (missing the others still)
 		err := json.Unmarshal(message.Body, &t)
 		if err != nil {
 			log.Printf(color.RedString("failed to unmarshal message into Event type: %s", message.Body))

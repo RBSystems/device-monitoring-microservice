@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -9,11 +10,12 @@ import (
 	"time"
 
 	"github.com/byuoitav/authmiddleware"
+	"github.com/byuoitav/central-event-system/hub/base"
 	"github.com/byuoitav/central-event-system/messenger"
 	"github.com/byuoitav/common/v2/events"
-	"github.com/byuoitav/device-monitoring-microservice/handlers"
-	"github.com/byuoitav/device-monitoring-microservice/monitoring"
-	"github.com/byuoitav/device-monitoring-microservice/statusinfrastructure"
+	"github.com/byuoitav/device-monitoring/handlers"
+	"github.com/byuoitav/device-monitoring/monitoring"
+	"github.com/byuoitav/device-monitoring/statusinfrastructure"
 	"github.com/byuoitav/touchpanel-ui-microservice/socket"
 	"github.com/fatih/color"
 	"github.com/labstack/echo"
@@ -26,13 +28,16 @@ var room string
 
 func main() {
 	//Our handy-dandy messenger to take our events to the hub
-	m := messenger.BuildMessenger(os.Getenv("EVENT_ROUTER_ADDRESS"), Messenger, 1000)
+	m, err := messenger.BuildMessenger(os.Getenv("EVENT_ROUTER_ADDRESS"), base.Messenger, 1000)
+	if err != nil {
+		fmt.Printf("Could not build messenger in device-monitoring: %s", err)
+	}
 	if _, exists := os.LookupEnv("SYSTEM_ROOM"); exists {
 		//If the the we are working in a room, subscribe to that room and monitor it
 		hostname := os.Getenv("SYSTEM_ID")
 		building = strings.Split(hostname, "-")[0]
 		room = strings.Split(hostname, "-")[1]
-		r := make([]string)
+		r := make([]string, 1)
 		r = append(r, (building + "-" + room))
 		m.SubscribeToRooms(r)
 		go monitor(building, room, m)

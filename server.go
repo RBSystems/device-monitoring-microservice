@@ -26,20 +26,34 @@ var room string
 
 func main() {
 	// start event node
-	filters := []string{events.TestEnd, events.TestExternal}
-	en := events.NewEventNode("Device Monitoring", os.Getenv("EVENT_ROUTER_ADDRESS"), filters)
+	//filters := []string{events.TestEnd, events.TestExternal}
+
+	m := messenger.BuildMessenger(os.Getenv("EVENT_ROUTER_ADDRESS"), Messenger, 1000)
+	if _, exists := os.LookupEnv("SYSTEM_ROOM"); exists {
+		hostname := os.Getenv("SYSTEM_ID")
+		building = strings.Split(hostname, "-")[0]
+		room = strings.Split(hostname, "-")[1]
+		r := make([]string)
+		r = append(r, (building + "-" + room))
+		en.SubscribeToRooms(r)
+		go monitor(building, room, m)
+	}
+
+	//en := events.NewEventNode("Device Monitoring", os.Getenv("EVENT_ROUTER_ADDRESS"), filters)
 
 	// websocket
-	hub := socket.NewHub(en)
-	go WriteEventsToSocket(en, hub, statusinfrastructure.EventNodeStatus{})
+	hub := socket.NewHub(m)
+	go WriteEventsToSocket(m, hub, statusinfrastructure.EventNodeStatus{})
 
+	/* Commented until we add SYSTEM_ID, then we will delete this
 	//get building and room info
 	hostname := os.Getenv("PI_HOSTNAME")
 	building = strings.Split(hostname, "-")[0]
 	room = strings.Split(hostname, "-")[1]
 
-	go monitor(building, room, en)
 
+	go monitor(building, room, en)
+	*/
 	port := ":10000"
 	router := echo.New()
 	router.Pre(middleware.RemoveTrailingSlash())
@@ -98,7 +112,7 @@ func BindEventNode(en *events.EventNode) echo.MiddlewareFunc {
 	}
 }
 
-func monitor(building, room string, en *events.EventNode) {
+func monitor(building, room string, m *messenger.Messenger) {
 	currentlyMonitoring := false
 
 	for {
@@ -108,7 +122,7 @@ func monitor(building, room string, en *events.EventNode) {
 			color.Set(color.FgYellow, color.Bold)
 			log.Printf("Starting monitoring of API")
 			color.Unset()
-			addr = monitoring.StartMonitoring(time.Second*300, "localhost:8000", building, room, en)
+			addr = monitoring.StartMonitoring(time.Second*300, "localhost:8000", building, room, m)
 			currentlyMonitoring = true
 		} else if currentlyMonitoring && shouldIMonitor {
 		} else {
@@ -124,10 +138,13 @@ func monitor(building, room string, en *events.EventNode) {
 	}
 }
 
-func WriteEventsToSocket(en *events.EventNode, h *socket.Hub, t interface{}) {
+func WriteEventsToSocket(m *messenger.Messenger, h *socket.Hub, t interface{}) {
 	for {
-		message := en.Node.Read()
+		message := m.ReceiveEvent()
+		//message := en.Node.Read()
 
+		//TODO I have no idea how to check this...
+		//Maybe the header thing is a tag(??) and I can ask how to check that???
 		if strings.EqualFold(message.Header, events.TestExternal) {
 			log.Printf(color.BlueString("Responding to external test event"))
 
